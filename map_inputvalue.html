@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>Show drawn polygon area</title>
+	<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+	        crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+	<script src="https://api.mapbox.com/mapbox-gl-js/v2.0.1/mapbox-gl.js"></script>
+	<link href="https://api.mapbox.com/mapbox-gl-js/v2.0.1/mapbox-gl.css" rel="stylesheet"/>
+	<style>
+       body {
+           margin  : 0;
+           padding : 0;
+       }
+
+       #map, #draw {
+           position : absolute;
+           top      : 0;
+           bottom   : 0;
+           width    : 100%;
+       }
+
+       #draw {
+           pointer-events : none;
+       }
+
+
+	   .mapboxgl-popup {
+		   max-width: 200px;
+	   }
+
+	   .mapboxgl-popup-content {
+		   text-align: center;
+		   font-family: 'Open Sans', sans-serif;
+	   }
+
+	   .mapboxgl-popup {
+		   z-index: 10;
+	   }
+	</style>
+
+	<style>
+		.calculation-box {
+			height           : 75px;
+			width            : 150px;
+			position         : absolute;
+			bottom           : 40px;
+			left             : 10px;
+			background-color : rgba(255, 255, 255, 0.9);
+			padding          : 15px;
+			text-align       : center;
+		}
+
+		p {
+			font-family : 'Open Sans';
+			margin      : 0;
+			font-size   : 13px;
+		}
+	</style>
+
+	<script src="https://api.tiles.mapbox.com/mapbox.js/plugins/turf/v3.0.11/turf.min.js"></script>
+	<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.2.0/mapbox-gl-draw.js"></script>
+	<link
+			rel="stylesheet"
+			href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.2.0/mapbox-gl-draw.css"
+			type="text/css"
+	/>
+
+	<style>
+		.mapboxgl-ctrl-group.mapboxgl-ctrl {
+			display : none;
+		}
+	</style>
+
+</head>
+
+<body>
+	<div class="sidebar p-3" style="width: 400px; height: 100vh; overflow-y: auto">
+		<div class="actions text-center mt-3">
+			<div class="markers">
+				<div class="mt-3">
+					<button class="btn btn-primary" id="landmark_1" onclick="createMark('zero_mark')">Zero LandMark</button>
+
+					<div class="mt-3 d-none">
+						Altitude <input type="range" min="0" max="100" value="0" class="slider" id="alt_zero"
+										onchange="redrawLine()">
+					</div>
+
+				</div>
+
+				<div class="mt-3">
+					<button class="btn btn-primary" id="landmark_2" onclick="createMark('alpha_mark')" disabled>Alpha LandMark</button>
+
+					<div class="mt-3 d-none">
+						Altitude <input type="range" min="0" max="100" value="0" class="slider" id="alt_alpha"
+										onchange="redrawLine()">
+					</div>
+
+				</div>
+			</div>
+
+			<hr>
+
+			<div class="points">
+				<div class="mt-3">
+					you can add points using mouse on map.
+					<button class="btn btn-primary mt-2" id="creat_point" onclick="createMark('point')" disabled>New Point</button>
+				</div>
+
+				<hr class="w-75">
+
+				<div class="add-custom-position">
+					you can add points one by one with [x, y, z]
+					<div class="d-flex align-items-center justify-content-center mt-2" >
+						<label  for="input_x" class="m-2">X:</label>
+						<input type="number" class="form-control" id="input_x" value="0">
+						<label for="input_y" class="m-2">Y:</label>
+						<input type="number" class="form-control" id="input_y" value="0">
+						<label for="input_z" class="m-2">Z:</label>
+						<input type="number" class="form-control" id="input_z" value="0">
+					</div>
+
+					<button class="btn btn-primary mt-2" id="add_position" disabled onclick="addPosition()">Add Point</button>
+				</div>
+
+				<hr class="w-75">
+
+				<div class="add-custom-json">
+					you can add points with json string.
+					<div class="mt-2" >
+						<label  for="input_json" class="m-2">Input Json:</label>
+						<textarea class="form-control" rows="5" id="input_json"></textarea>
+					</div>
+
+					<button class="btn btn-primary mt-2" id="add_json" disabled onclick="addPositionJson()">Add Points</button>
+				</div>
+
+				<hr class="w-75">
+
+				<div class="remove-points">
+					<button class="btn btn-outline-danger" onclick="removeAll()">Remove Points</button>
+				</div>
+
+			</div>
+
+			<hr class="">
+
+			<div class="mt-3">
+				<button class="btn btn-outline-danger" id="reset" onclick="reset()">Reset</button>
+			</div>
+
+		</div>
+
+		<div class="results mt-3">
+			<div class="">
+				<label for="distance">Distance from Point Zero to cursor:</label>
+				<span id="distance">0</span>m
+			</div>
+
+			<div class="">
+				<label for="x_position">X:</label>
+				<span id="x_position">0</span>m
+				<label for="y_position">Y:</label>
+				<span id="y_position">0</span>m
+			</div>
+
+			<div class="">
+				<label for="dx_position">dX:</label>
+				<span id="dx_position">0</span>m
+				<label for="dy_position">dY:</label>
+				<span id="dy_position">0</span>m
+			</div>
+
+			<div class="points-json">
+
+			</div>
+
+		</div>
+	</div>
+	<div id="map" style="width: calc(100vw - 400px); left: 400px; height: 100vh;"></div>
+	<svg id="draw" style="width: calc(100vw - 400px); left: 400px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 952 937" preserveAspectRatio="none">
+		<defs><style>.cls-1 {fill : #FF7800;}</style></defs>
+	</svg>
+	<script src="js/script.js"></script>
+
+<script>
+	// svg related
+	function onResizeWindow() {
+		let w = window.innerWidth - 400;
+		$( '#draw' ).attr( 'viewBox', '0 0 ' + w + ' ' + window.innerHeight )
+	}
+	
+	$( window ).resize( onResizeWindow );
+	$( document ).ready( onResizeWindow );
+
+
+	mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2ZWxvcGVyNjEzIiwiYSI6ImNrZzBqd2I3eTBocmsydXFpdGQwZm9tanYifQ.b2fVHJfFOGwb2X21l7SOLg';
+	var map = new mapboxgl.Map( {
+		container: 'map', // container id
+		style: 'mapbox://styles/mapbox/satellite-v9', //hosted style id
+		center: [-91.8810, 42.7751], // starting position
+		zoom: 16 // starting zoom
+	} );
+	
+	var draw = new MapboxDraw( {
+		displayControlsDefault: false,
+		controls: {
+			point: true,
+			trash: true,
+			width: 50
+		}
+	} );
+	map.addControl( draw );
+	
+	map.on( 'draw.create', createDraw );
+	map.on( 'draw.delete', deleteDraw );
+	map.on( 'draw.update', updateDraw );
+	map.on( 'draw.selectionchange', selectionchange);
+	
+	let coordinateSystem = null;
+	
+	let zeroMark;
+	let isZeroMark = false;
+	
+	let alphaMark;
+	let isAlphaMark = false;
+	
+	let isDrawingType = '';
+	
+	let zeroPoint = null, alphaPoint = null;
+
+	let selectedPointId = '';
+
+
+	
+
+
+	function addPosition(position = null) {
+		var vPosition = [0, 0];
+		var alt = 0;
+
+		if (pointAry.length > 0) {
+			vPosition = pointAry[pointAry.length - 1].vPosition;
+			alt = pointAry[pointAry.length - 1].alt;
+		}
+
+		var x = $('#input_x').val();
+		var y = $('#input_y').val();
+		var z = $('#input_z').val();
+
+		if (position != null) {
+			console.log('---', position);
+			x = Number(position[0]);
+			y = Number(position[1]);
+			z = Number(position[2]);
+		}
+
+		// vPosition = [vPosition[0] + Number(dx), vPosition[1] + Number(dy)];
+		vPosition = [Number(x), Number(y)];
+
+		var id = '';
+
+		id = makeUniqueId();
+
+		var point = coordinateSystem.getPointFromVCXY(vPosition);
+
+
+		var object = createObject(point, id);
+		pointAry.push( object );
+		updatePointJson();
+		isDrawingType = '';
+
+		alt = alt + Number(z);
+		updateAlt(id, alt);
+		redrawLine();
+	}
+
+	function addPositionJson() {
+		var jsonStr = $('#input_json').val();
+		jsonStr = jsonStr.replaceAll('m', '');
+
+		if (jsonStr != '') {
+
+			var positions = JSON.parse(jsonStr);
+			console.log('positions', positions);
+			for (var i=0; i<positions.length; i++) {
+				addPosition([positions[i]['x'], positions[i]['y'], positions[i]['z']]);
+			}
+		}
+	}
+
+	function drawLineSystem() {
+
+		if (map.getLayer('route')) map.removeLayer('route');
+		if (map.getSource('route')) map.removeSource('route');
+
+		if (!isAlphaMark) return;
+
+		map.addSource('route', {
+			'type': 'geojson',
+			'data': {
+				'type': 'Feature',
+				'properties': {},
+				'geometry': {
+					'type': 'LineString',
+					'coordinates': [
+						zeroPoint,
+						alphaPoint,
+					]
+				}
+			}
+		});
+		map.addLayer({
+			'id': 'route',
+			'type': 'line',
+			'source': 'route',
+			'layout': {
+				'line-join': 'round',
+				'line-cap': 'round'
+			},
+			'paint': {
+				'line-color': '#dc3545',
+				'line-width': 4
+			}
+		});
+	}
+
+	//<line id="svgLineX" stroke="#dc3545" stroke-width="3"/>
+	// https://docs.mapbox.com/mapbox-gl-js/api/map/#map.event:render
+	function redrawLine() {
+		if (coordinateSystem == null) return;
+
+		// update svg line, hacky stuff TODO: use builtin mapbox feature instead
+		let markers = $( '.mapboxgl-marker' );
+		if( markers.length < 2 ) return;
+
+		let prevPoint = null, pp = null, prevAlt = 0;
+
+		for (var i = 0; i < markers.length; i++) {
+			if (!markers.eq(i).hasClass('object-point')) {
+				prevPoint = markers.eq(i);
+				pp = prevPoint.position();
+				prevAlt = 0;
+				break;
+			}
+		}
+
+		$('#draw').html('<defs><style>.cls-1 {fill : #FF7800;}</style></defs>');
+
+		let line, object, currentPoint, cp, x1, y1, x2, y2;
+
+		let lineLength = $('#draw line').length;
+
+		for (var i = 0; i<pointAry.length; i++) {
+			if (i < lineLength)
+				line = $('#draw line')[i];
+			else
+				line = document.createElementNS('http://www.w3.org/2000/svg','line');
+			object = pointAry[i];
+			currentPoint = $('#' + object.id);
+			cp = currentPoint.position();
+			x1 = pp.left + prevPoint.width() / 2;
+			if (i == 0)
+				y1 = pp.top + prevPoint.height() * 0.9 - prevAlt;
+			else
+				y1 = pp.top + prevPoint.height() * 0.5 - prevAlt;
+			x2 = cp.left + currentPoint.width() / 2;
+			y2 = cp.top + currentPoint.height() * 0.5 - object.alt;
+			line.setAttribute( 'x1', x1 );
+			line.setAttribute( 'y1', y1 );
+			line.setAttribute( 'x2', x2 );
+			line.setAttribute( 'y2', y2 );
+			line.setAttribute('id','line_' + object.id);
+			line.setAttribute("stroke", "black");
+			line.setAttribute('stroke-width', 2);
+
+			$('svg').append(line);
+
+			prevPoint = currentPoint;
+			pp = cp;
+			prevAlt = object.alt;
+		}
+
+		// TODO: convert pixel altitude to meter?
+		// TODO: probably add vertical line
+	}
+	
+	map.on( 'render', redrawLine );
+	
+	function updateDraw( e ) {
+		var id = e.features[ 0 ][ 'id' ];
+		var point = e.features[ 0 ][ 'geometry' ][ 'coordinates' ];
+	}
+	
+	function deleteDraw( e ) {
+
+	}
+
+	function selectionchange( e ) {
+		if (e.features.length == 0) {
+			selectedPointId = '';
+		}
+		else {
+			var id = e.features[ 0 ][ 'id' ];
+			var point = e.features[ 0 ][ 'geometry' ][ 'coordinates' ];
+			selectedPointId = id;
+		}
+	}
+
+	map.on( 'mousemove', function( e ) {
+		if( isAlphaMark ) {
+			var point = [e.lngLat.lng, e.lngLat.lat];
+			var vPosition = coordinateSystem.getCustomPosition( point );
+			var distance = coordinateSystem.getCustomDistance( point );
+			$( '#distance' ).text( distance.toFixed( 2 ) );
+			$( '#x_position' ).text( vPosition[ 0 ].toFixed( 2 ) );
+			$( '#y_position' ).text( vPosition[ 1 ].toFixed( 2 ) );
+
+			var dPosition = [0, 0];
+
+			if (pointAry.length == 0) {
+				dPosition[0] = vPosition[0];
+				dPosition[1] = vPosition[1];
+			}
+			else {
+				dPosition[0] = vPosition[0] - pointAry[pointAry.length - 1].vPosition[0];
+				dPosition[1] = vPosition[1] - pointAry[pointAry.length - 1].vPosition[1];
+			}
+
+			$( '#dx_position' ).text( dPosition[ 0 ].toFixed( 2 ) );
+			$( '#dy_position' ).text( dPosition[ 1 ].toFixed( 2 ) );
+		}
+	} );
+
+
+	function createDraw( e ) {
+		var id = e.features[ 0 ][ 'id' ];
+		draw.delete( id );
+	}
+
+	function makeUniqueId(length=32) {
+		var id = '';
+
+		while (true) {
+			id = makeid(length);
+			var i = 0;
+			var is_same = false;
+			for (i = 0; i<pointAry.length; i++) {
+				if (pointAry[i].id == id) {
+					is_same = true;
+					break;
+				}
+			}
+			if (!is_same)
+				break;
+		}
+		return id;
+	}
+
+	map.on('click', function (e) {
+		if (isDrawingType == '')
+			return;
+		var id = '';
+
+		id = makeUniqueId();
+
+		var point = [e.lngLat.lng, e.lngLat.lat];
+
+		if( isDrawingType=='zero_mark' ) {
+			if( isZeroMark ) {
+				zeroMark.remove();
+			} else {
+				isZeroMark = true;
+			}
+
+			zeroMark = new mapboxgl.Marker( {
+				draggable: true,
+				color: 'red',
+
+			} ).setLngLat( point ).addTo( map );
+
+			zeroMark.on( 'dragend', updateZeroMark );
+
+			zeroPoint = point;
+
+			$( '#landmark_2' ).attr( 'disabled', false );
+
+			if( coordinateSystem != null ) {
+				coordinateSystem.setZeroMark(zeroMark);
+				drawLineSystem();
+			}
+		}
+		else if( isDrawingType=='alpha_mark' ) {
+
+			if( isAlphaMark ) {
+				alphaMark.remove();
+			} else {
+				isAlphaMark = true;
+			}
+
+			alphaMark = new mapboxgl.Marker( {
+				draggable: true
+			} ).setLngLat( point ).addTo( map );
+
+			alphaMark.on( 'dragend', updateAlphaMark );
+
+			alphaPoint = point;
+
+			if( coordinateSystem != null ) {
+				coordinateSystem.setAlpha(alphaPoint);
+			}
+			else if( isZeroMark ) {
+				coordinateSystem = new CoordinateSystem( zeroPoint, alphaPoint, 'right' );
+			}
+
+			drawLineSystem();
+
+			$( '#creat_point' ).attr( 'disabled', false );
+			$( '#add_position' ).attr( 'disabled', false );
+			$( '#add_json' ).attr( 'disabled', false );
+
+		} else {
+			var object = createObject(point, id);
+			pointAry.push( object );
+			updatePointJson();
+		}
+		isDrawingType = '';
+	});
+	
+	function updateZeroMark( e ) {
+		console.log( 'zeroMark', e.target._lngLat );
+		var point = zeroMark.getLngLat();
+		zeroPoint = [point.lng, point.lat];
+		coordinateSystem.setZeroMark( zeroPoint );
+		drawLineSystem();
+	}
+	
+	function updateAlphaMark( e ) {
+		console.log( 'zeroMark', e );
+		var point = alphaMark.getLngLat();
+		alphaPoint = [point.lng, point.lat];
+		coordinateSystem.setAlpha( alphaPoint );
+		drawLineSystem();
+	}
+	
+	var pointAry = [];
+
+
+
+	function createMark( actionType ) {
+		isDrawingType = actionType;
+		$( '.mapbox-gl-draw_ctrl-draw-btn.mapbox-gl-draw_point' ).trigger( 'click' );
+	}
+
+
+	function deleteObject(id) {
+		for (var i = 0; i < pointAry.length; i++) {
+			if (pointAry[i].id == id) {
+				pointAry[i].remove();
+				pointAry.splice( i, 1 );
+				updatePointJson();
+				break;
+			}
+		}
+	}
+	
+	function allClear() {
+		draw.deleteAll()
+	}
+	
+	function reset() {
+		isDrawingType = '';
+		if( isZeroMark ) zeroMark.remove();
+		if( isAlphaMark ) alphaMark.remove();
+		isZeroMark = false;
+		isAlphaMark = false;
+		$( '#landmark_2' ).attr( 'disabled', true );
+		$( '#creat_point' ).attr( 'disabled', true );
+		$( '#add_position' ).attr( 'disabled', true );
+		$( '#add_json' ).attr( 'disabled', true );
+		// allClear();
+		$( '#distance' ).text( '0' );
+		$( '#x_position' ).text( '0' );
+		$( '#y_position' ).text( '0' );
+		coordinateSystem = null;
+
+		if (map.getLayer('route')) map.removeLayer('route');
+		if (map.getSource('route')) map.removeSource('route');
+
+		removeAll();
+	}
+
+	function removeAll() {
+		for (var i = 0; i < pointAry.length; i++) {
+			pointAry[i].remove();
+		}
+		pointAry = [];
+		updatePointJson();
+		$('#draw').html('');
+	}
+
+	function createObject(point, id) {
+		// create a DOM element for the marker
+		var el = document.createElement('div');
+		el.className = 'object-point';
+		el.style.backgroundColor = 'yellow';
+		el.style.width = '20px';
+		el.style.height = '20px';
+		el.style.borderRadius = '50%';
+		el.id = id;
+
+		el.addEventListener('click', function () {
+			// window.alert('test');
+		});
+
+		el.draggable = true;
+
+		var vPosition = coordinateSystem.getCustomPosition(point);
+
+		var index = 0;
+
+		for (index = 0; index < pointAry.length; index++) {
+			if (id == pointAry[index].id)
+			{
+				break;
+			}
+		}
+
+		var prevPosition = [0, 0];
+		var prevAlt = 0;
+
+		if (index > 0) {
+			var prevPoint = [pointAry[index - 1].getLngLat().lng, pointAry[index - 1].getLngLat().lat];
+			prevPosition = coordinateSystem.getCustomPosition(prevPoint);
+			prevAlt = pointAry[index - 1].alt;
+		}
+
+		var popupHtml = '' +
+				'<div class="mt-1 popup-detail" style="width: 240px">' +
+					'<div class="d-flex flex-row">' +
+						'<div class="w-50 text-left p-1">' +
+							'<div>X: <span class="point_x">' + vPosition[0].toFixed( 2 ) + '</span>m</div>' +
+							'<div>Y: <span class="point_y">' + vPosition[1].toFixed( 2 ) + '</span>m</div>' +
+							'<div>Z: <span class="point_z">0</span>m</div>' +
+						'</div>' +
+
+						'<div class="w-50 text-left p-1">' +
+							'<div>dX: <span class="point_x">' + (vPosition[0] - prevPosition[0]).toFixed(2) + '</span>m</div>' +
+							'<div>dY: <span class="point_y">' + (vPosition[1] - prevPosition[1]).toFixed(2) + '</span>m</div>' +
+							'<div>dZ: <span class="point_z">' + (0 - prevAlt).toFixed(2) + '</span>m</div>' +
+						'</div>' +
+					'</div>' +
+
+					'<div class="mt-3 d-flex flex-row align-item-center">' +
+						'<span>Z: </span>' +
+						'<input type="range" min="0" max="100" value="0" class="slider" id="alt_point" onchange="updateAlt(\'' + id + '\')">' +
+					'</div>' +
+
+					'<div>' +
+						'<button class="btn btn-sm btn-danger mt-2" onclick="deleteObject(\'' + id + '\')">remove point</button>' +
+					'</div>' +
+				'</div>';
+
+		// add marker to map
+		var object = new mapboxgl.Marker( {
+			draggable: true,
+			element: el
+		} )
+		.setLngLat(point)
+		.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml))
+		.addTo(map);
+
+		object.on( 'dragend', dragendObject );
+		object.id = id;
+		object.alt = 0;
+		object.vPosition = vPosition;
+
+		console.log(object);
+
+		return object;
+	}
+
+	function dragendObject( e ) {
+		var index = updateObject(e.target);
+		if (index < pointAry.length - 1) {
+			updateObject(pointAry[index + 1])
+		}
+	}
+
+	function updateObject( object ) {
+		var point = [object.getLngLat().lng, object.getLngLat().lat] ;
+		var vPosition = coordinateSystem.getCustomPosition(point);
+
+		var index = 0;
+
+		for (index = 0; index < pointAry.length; index++) {
+			if (object.id == pointAry[index].id)
+			{
+				object.vPosition = vPosition;
+				pointAry[index] = object;
+				updatePointJson();
+				break;
+			}
+		}
+
+		var prevPosition = [0, 0];
+		var prevAlt = 0;
+
+		if (index > 0) {
+			var prevPoint = [pointAry[index - 1].getLngLat().lng, pointAry[index - 1].getLngLat().lat];
+			prevPosition = coordinateSystem.getCustomPosition(prevPoint);
+			prevAlt = pointAry[index - 1].alt;
+			console.log('prev', prevAlt)
+		}
+
+		var popupHtml = '' +
+				'<div class="mt-1 popup-detail" style="width: 240px">' +
+					'<div class="d-flex flex-row">' +
+						'<div class="w-50 text-left p-1">' +
+							'<div>X: <span class="point_x">' + vPosition[0].toFixed( 2 ) + '</span>m</div>' +
+							'<div>Y: <span class="point_y">' + vPosition[1].toFixed( 2 ) + '</span>m</div>' +
+							'<div>Z: <span class="point_z">' + object.alt + '</span>m</div>' +
+						'</div>' +
+
+						'<div class="w-50 text-left p-1">' +
+							'<div>dX: <span class="point_x">' + (vPosition[0] - prevPosition[0]).toFixed(2) + '</span>m</div>' +
+							'<div>dY: <span class="point_y">' + (vPosition[1] - prevPosition[1]).toFixed(2) + '</span>m</div>' +
+							'<div>dZ: <span class="point_z">' + (object.alt - prevAlt).toFixed(2) + '</span>m</div>' +
+						'</div>' +
+					'</div>' +
+
+					'<div class="mt-3 d-flex flex-row align-item-center">' +
+						'<span>Z: </span>' +
+						'<input type="range" min="0" max="100" value="' + object.alt + '" class="slider" id="alt_point" onchange="updateAlt(\'' + object.id + '\')">' +
+					'</div>' +
+
+					'<div>' +
+						'<button class="btn btn-sm btn-danger mt-2" onclick="deleteObject(\'' + object.id + '\')">remove point</button>' +
+					'</div>' +
+				'</div>';
+		object.getPopup().setHTML(popupHtml);
+
+		return index;
+	}
+
+	function updateAlt (id, alt = null) {
+		for (var i = 0; i < pointAry.length; i++) {
+			if (pointAry[i].id == id) {
+				var object = pointAry[i];
+
+				if (alt == null) {
+					object.alt = $('.popup-detail .slider').val();
+				}
+				else {
+					object.alt = alt;
+				}
+
+				console.log(object.alt);
+
+				var index = updateObject(object);
+				if (index < pointAry.length - 1) {
+					updateObject(pointAry[index + 1])
+				}
+				break;
+			}
+		}
+		redrawLine();
+	}
+
+	function updatePointJson() {
+		var pointJsonAry = [];
+		var prevJson = {
+			'x': 0,
+			'y': 0,
+			'z': 0
+		};
+		for (var i=0; i<pointAry.length; i++) {
+
+			// pointJsonAry.push({
+			// 	'x': (pointAry[i].vPosition[0] - prevJson['x']).toFixed(2) + 'm',
+			// 	'y': (pointAry[i].vPosition[1] - prevJson['y']).toFixed(2) + 'm',
+			// 	'z': (pointAry[i].alt - prevJson['z']).toFixed(2) + 'm',
+			// });
+			//
+			// prevJson = {
+			// 	'x': pointAry[i].vPosition[0],
+			// 	'y': pointAry[i].vPosition[1],
+			// 	'z': pointAry[i].alt,
+			// };
+
+			pointJsonAry.push({
+				'x': (pointAry[i].vPosition[0]).toFixed(2) + 'm',
+				'y': (pointAry[i].vPosition[1]).toFixed(2) + 'm',
+				'z': (pointAry[i].alt).toFixed(2) + 'm',
+			});
+		}
+		$('.points-json').html(JSON.stringify(pointJsonAry));
+	}
+
+	map.resize();
+
+
+</script>
+
+</body>
+</html>
